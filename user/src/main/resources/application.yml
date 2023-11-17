@@ -1,0 +1,31 @@
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/db_messages
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+    database: mysql
+  kafka:
+    bootstrap-servers: ${KAFKA_URL_INSIDE:localhost:9092}
+    consumer:
+      bootstrap-servers: ${KAFKA_URL_INSIDE:localhost:9092}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      group-id: pblgllgs
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: '*'
+server:
+  port: 8081

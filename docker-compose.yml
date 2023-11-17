@@ -1,0 +1,103 @@
+version: "3.4"
+
+services:
+  zookeeper:
+    container_name: zookeeper
+    image: bitnami/zookeeper
+    restart: always
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - kafka-net
+
+  kafka:
+    container_name: kafka
+    image: bitnami/kafka
+    ports:
+      - "9092:9092"
+    restart: always
+    volumes:
+      - "kafka_data:/bitnami"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9092
+    healthcheck:
+      test: "bash -c 'echo QUIT | nc -w 1 localhost 9092'"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - zookeeper
+    networks:
+      - kafka-net
+
+  mysql_db_messages:
+    container_name: mysql_db_messages
+    image: mysql:8.0.32
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_USERNAME: root
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: db_messages
+    ports:
+      - "3306:3306"
+    volumes:
+      - volume_mysql_db_messages:/var/lib/mysql
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    networks:
+      - db-net
+
+  user-service:
+    container_name: user-service
+    image: pblgllgs/sb3-kafka-user-consumer:1.0.0
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      KAFKA_URL_INSIDE: kafka:9092
+      DB_HOST: mysql_db_messages
+    depends_on:
+      mysql_db_messages:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - db-net
+      - kafka-net
+
+  driver-service:
+    container_name: driver-service
+    image: pblgllgs/sb3-kafka-driver-producer:1.0.0
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_URL_INSIDE: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_started
+    networks:
+      - kafka-net
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+  volume_mysql_db_messages:
+    driver: local
+networks:
+  kafka-net:
+  db-net:
